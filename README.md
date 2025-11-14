@@ -19,11 +19,19 @@ Then open `http://localhost:8000` (or `http://localhost:8080` for http-server)
 
 ## Configuration
 
-Update the `API_BASE_URL` in `client.js` to point to your server:
+Update the `API_BASE_URL` in `client.js` to point to your server. For local
+development use `http://localhost:3000`:
 
 ```javascript
-const API_BASE_URL = 'http://your-server-url:3000';
+const API_BASE_URL = 'http://localhost:3000';
 ```
+
+Notes:
+- If embedding in Wix (HTML iframe), set the same `API_BASE_URL` inside the
+	embed code (`index.html`) and ensure the server uses HTTPS in production.
+- Ensure your server allows CORS from your site origin. The provided server
+	uses `cors()` which permits all origins by default; tighten this for
+	production.
 
 ## Features
 

@@ -1,37 +1,181 @@
-<!DOCTYPE html>
+<!--
+  Self-contained chatbot embed for Wix Custom Element (HTML iframe).
+  Usage:
+  1) In Wix Editor, add an "Embed a Site" or "Custom Element" (HTML iframe) to a page.
+  2) Open the HTML settings and choose "Code" or "Paste HTML" and paste this entire file's contents.
+  3) Set the `API_BASE_URL` below to your deployed server URL (must be HTTPS in production).
+  4) Ensure the server allows CORS from your Wix site domain (server uses CORS by default).
+-->
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Chatbot</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ChatBot Embed</title>
+  <style>
+    /* Inline copy of style.css simplified for embed */
+    :root { --accent1: #667eea; --accent2: #764ba2; }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Segoe UI, Tahoma, Geneva, Verdana, sans-serif;background:transparent;padding:8px;color:#222}
+     /* Widget container: will expand/collapse inside the iframe.
+       Place the iframe in Wix bottom-right (or host externally and use Velo to inject iframe).
+       The widget itself supports a minimized circular button and an expanded chat panel. */
+     .chatbot-wrap{width:100%;height:100%;min-height:320px;display:flex;flex-direction:column;border-radius:8px;overflow:hidden;background:#fff;border:1px solid #e6e6e6}
+     .widget-root{position:fixed;right:16px;bottom:16px;z-index:2147483647;font-family:Segoe UI, Tahoma, Geneva, Verdana, sans-serif}
+     .widget-frame{width:60px;height:60px;border-radius:999px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,0.15);background:linear-gradient(135deg,var(--accent1),var(--accent2));display:flex;align-items:center;justify-content:center;cursor:pointer}
+     .widget-frame.expanded{width:360px;height:520px;border-radius:12px;display:block;padding:0}
+     .widget-inner{width:100%;height:100%;display:flex;flex-direction:column}
+     .widget-inner.hidden{display:none}
+    .chat-header{background:linear-gradient(135deg,var(--accent1),var(--accent2));color:#fff;padding:12px;text-align:center}
+    .chat-header h2{font-size:16px;margin-bottom:2px}
+    .chat-body{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px;background:#fafafa}
+    .chat-footer{padding:8px;border-top:1px solid #eee;background:#fff}
+    .row{display:flex;align-items:center;gap:8px}
+    input[type="text"]{flex:1;padding:8px 12px;border-radius:20px;border:1px solid #ddd}
+    .msg{max-width:85%;padding:8px 12px;border-radius:14px;font-size:14px}
+    .bot{align-self:flex-start;background:#f0f0f0;color:#111;border-bottom-left-radius:4px}
+    .user{align-self:flex-end;background:var(--accent1);color:#fff;border-bottom-right-radius:4px}
+    .meta{font-size:12px;color:#b40a0a;margin-bottom:6px}
+    .error{color:#a00;font-size:13px}
+  </style>
 </head>
 <body>
-    <div class="chatbot-container">
-        <div class="chatbot-header">
-            <h1>ChatBot</h1>
-            <p class="subtitle">Ask me anything!</p>
+  <div class="widget-root" id="widgetRoot">
+    <!-- Minimized frame (becomes expanded when .expanded is added) -->
+    <div id="widgetFrame" class="widget-frame" aria-label="Open chat">
+      <div id="widgetInner" class="widget-inner hidden">
+        <div class="chat-header">
+          <h2>ChatBot</h2>
+          <div class="meta">Ask me anything — powered by your API</div>
         </div>
-        
-        <div class="chatbot-messages" id="messagesContainer">
-            <div class="message bot-message">
-                <p>Hello! I'm ChatBot. How can I help you today?</p>
-            </div>
-        </div>
-        
-        <div class="chatbot-input">
-            <form id="chatForm">
-                <input 
-                    type="text" 
-                    id="userInput" 
-                    placeholder="Type your message..." 
-                    autocomplete="off"
-                >
-                <button type="submit">Send</button>
-            </form>
-        </div>
-    </div>
 
-    <script src="client.js"></script>
+        <div class="chat-body" id="messages"></div>
+
+        <div class="chat-footer">
+          <form id="chatForm" class="row" onsubmit="return false">
+            <input id="userInput" type="text" placeholder="Type your message..." />
+            <button id="sendBtn" type="button">Send</button>
+          </form>
+          <div id="status" class="meta"></div>
+        </div>
+      </div>
+      <!-- Minimized icon (visible when collapsed) -->
+      <svg id="chatIcon" width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10z" fill="white"/>
+      </svg>
+    </div>
+  </div>
+
+  <script>
+    // Set this to your server URL. For local development use http://localhost:3000
+    // In production use https://your-server.example.com and make sure the server
+    // supports CORS for your Wix site origin.
+    // const API_BASE_URL = 'http://localhost:3000';
+    const API_BASE_URL = 'https://loan-boat-server.onrender.com';
+    
+    const messagesEl = document.getElementById('messages');
+    const inputEl = document.getElementById('userInput');
+    const btn = document.getElementById('sendBtn');
+    const statusEl = document.getElementById('status');
+
+    // Initial bot greeting
+    addMessage("Hello! I'm ChatBot. How can I help you today?", 'bot');
+
+    // Focus input for easier typing in iframe when expanded
+    // Toggle behavior: clicking the minimized frame expands the widget
+    const widgetFrame = document.getElementById('widgetFrame');
+    const widgetInner = document.getElementById('widgetInner');
+    const chatIcon = document.getElementById('chatIcon');
+
+    function openWidget(){
+      widgetFrame.classList.add('expanded');
+      widgetInner.classList.remove('hidden');
+      chatIcon.style.display = 'none';
+      inputEl.focus();
+    }
+
+    function closeWidget(){
+      widgetFrame.classList.remove('expanded');
+      widgetInner.classList.add('hidden');
+      chatIcon.style.display = '';
+    }
+
+    widgetFrame.addEventListener('click', (e)=>{
+      // If click happens on a control inside inner area, ignore here
+      if(widgetFrame.classList.contains('expanded')) return;
+      openWidget();
+    });
+
+    // Add a small close button inside header when expanded
+    const headerCloseBtn = document.createElement('button');
+    headerCloseBtn.textContent = '×';
+    headerCloseBtn.style.cssText = 'position:absolute;right:10px;top:8px;background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer';
+    headerCloseBtn.addEventListener('click', (ev)=>{ ev.stopPropagation(); closeWidget(); });
+    document.addEventListener('DOMContentLoaded', ()=>{
+      const header = document.querySelector('.chat-header');
+      if(header) header.appendChild(headerCloseBtn);
+    });
+
+    btn.addEventListener('click', sendMessage);
+    inputEl.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') sendMessage(); });
+
+    async function sendMessage(){
+      const text = inputEl.value.trim();
+      if(!text) return;
+      addMessage(text, 'user');
+      inputEl.value = '';
+      inputEl.focus();
+
+      statusEl.textContent = 'Sending...';
+
+      try{
+        const res = await fetch(API_BASE_URL + '/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text })
+        });
+
+        if(!res.ok) throw new Error('Server returned ' + res.status);
+        const data = await res.json();
+        addMessage(data.reply || 'No reply', 'bot');
+        statusEl.textContent = '';
+      }catch(err){
+        console.error(err);
+        statusEl.innerHTML = '<span class="error">Error: ' + escapeHtml(err.message) + '</span>';
+        addMessage('Sorry, I could not reach the server. Make sure API URL is correct and server allows CORS.', 'bot');
+      }
+    }
+
+    function addMessage(text, who){
+      const d = document.createElement('div');
+      d.className = 'msg ' + (who === 'user' ? 'user' : 'bot');
+      d.textContent = text;
+      messagesEl.appendChild(d);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c]; }); }
+
+    // Optional: simple health check to show server reachable
+    (async function checkHealth(){
+      if(!API_BASE_URL || API_BASE_URL.includes('your-server')){ statusEl.textContent = 'Set `API_BASE_URL` in embed code to your server URL.'; return; }
+      try{
+        const r = await fetch(API_BASE_URL + '/health');
+        if(r.ok) statusEl.textContent = 'Server reachable'; else statusEl.textContent = 'Server responded with status ' + r.status;
+      }catch(e){ statusEl.textContent = 'Server not reachable (check URL/CORS)'; }
+    })();
+    
+    // Accessibility: allow Esc to close widget when expanded
+    document.addEventListener('keydown', (e)=>{
+      if(e.key === 'Escape'){
+        const wf = document.getElementById('widgetFrame');
+        if(wf && wf.classList.contains('expanded')){
+          wf.classList.remove('expanded');
+          document.getElementById('widgetInner').classList.add('hidden');
+          document.getElementById('chatIcon').style.display = '';
+        }
+      }
+    });
+  </script>
 </body>
 </html>
