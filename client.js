@@ -1,5 +1,6 @@
 // Configuration
-const API_BASE_URL = 'http://localhost:3000'; // Change this when deploying to production
+// const API_BASE_URL = 'http://localhost:3000'; // Change this when deploying to production
+const API_BASE_URL = 'https://loan-boat-server.onrender.com'; // Change this when deploying to production
 
 const chatForm = document.getElementById('chatForm');
 const userInput = document.getElementById('userInput');
